@@ -19,13 +19,19 @@ public final class Analyser {
     Tokenizer tokenizer;
     ArrayList<Instruction> instructions;
 
-    /** 当前偷看的 token */
+    /**
+     * 当前偷看的 token
+     */
     Token peekedToken = null;
 
-    /** 符号表 */
+    /**
+     * 符号表
+     */
     HashMap<String, SymbolEntry> symbolTable = new HashMap<>();
 
-    /** 下一个变量的栈偏移 */
+    /**
+     * 下一个变量的栈偏移
+     */
     int nextOffset = 0;
 
     public Analyser(Tokenizer tokenizer) {
@@ -40,7 +46,7 @@ public final class Analyser {
 
     /**
      * 查看下一个 Token
-     * 
+     *
      * @return
      * @throws TokenizeError
      */
@@ -53,7 +59,7 @@ public final class Analyser {
 
     /**
      * 获取下一个 Token
-     * 
+     *
      * @return
      * @throws TokenizeError
      */
@@ -69,7 +75,7 @@ public final class Analyser {
 
     /**
      * 如果下一个 token 的类型是 tt，则返回 true
-     * 
+     *
      * @param tt
      * @return
      * @throws TokenizeError
@@ -81,7 +87,7 @@ public final class Analyser {
 
     /**
      * 如果下一个 token 的类型是 tt，则前进一个 token 并返回这个 token
-     * 
+     *
      * @param tt 类型
      * @return 如果匹配则返回这个 token，否则返回 null
      * @throws TokenizeError
@@ -97,7 +103,7 @@ public final class Analyser {
 
     /**
      * 如果下一个 token 的类型是 tt，则前进一个 token 并返回，否则抛出异常
-     * 
+     *
      * @param tt 类型
      * @return 这个 token
      * @throws CompileError 如果类型不匹配
@@ -113,7 +119,7 @@ public final class Analyser {
 
     /**
      * 获取下一个变量的栈偏移
-     * 
+     *
      * @return
      */
     private int getNextVariableOffset() {
@@ -122,7 +128,7 @@ public final class Analyser {
 
     /**
      * 添加一个符号
-     * 
+     *
      * @param name          名字
      * @param isInitialized 是否已赋值
      * @param isConstant    是否是常量
@@ -139,7 +145,7 @@ public final class Analyser {
 
     /**
      * 设置符号为已赋值
-     * 
+     *
      * @param name   符号名称
      * @param curPos 当前位置（报错用）
      * @throws AnalyzeError 如果未定义则抛异常
@@ -155,7 +161,7 @@ public final class Analyser {
 
     /**
      * 获取变量在栈上的偏移
-     * 
+     *
      * @param name   符号名
      * @param curPos 当前位置（报错用）
      * @return 栈偏移
@@ -172,7 +178,7 @@ public final class Analyser {
 
     /**
      * 获取变量是否是常量
-     * 
+     *
      * @param name   符号名
      * @param curPos 当前位置（报错用）
      * @return 是否为常量
@@ -203,7 +209,10 @@ public final class Analyser {
     }
 
     private void analyseMain() throws CompileError {
-        throw new Error("Not implemented");
+        analyseConstantDeclaration();
+        analyseVariableDeclaration();
+        analyseStatementSequence();
+        //throw new Error("Not implemented");
     }
 
     private void analyseConstantDeclaration() throws CompileError {
@@ -221,31 +230,85 @@ public final class Analyser {
 
             // 分号
             expect(TokenType.Semicolon);
+            addSymbol(nameToken.getValueString(), true, true, nameToken.getStartPos());
         }
     }
 
     private void analyseVariableDeclaration() throws CompileError {
-        throw new Error("Not implemented");
+
+        while (nextIf(TokenType.Var) != null) {
+            var nameToken = expect(TokenType.Ident);
+            addSymbol(nameToken.getValueString(), false, false, nameToken.getStartPos());
+            if (nextIf(TokenType.Equal) != null) {
+                analyseExpression();
+            }
+            expect(TokenType.Semicolon);
+            declareSymbol(nameToken.getValueString(),nameToken.getStartPos());
+        }
+        //throw new Error("Not implemented");
     }
 
     private void analyseStatementSequence() throws CompileError {
-        throw new Error("Not implemented");
+        while (check(TokenType.Ident) || check(TokenType.Print) || check(TokenType.Semicolon))
+            analyseStatement();
+        //throw new Error("Not implemented");
     }
 
     private void analyseStatement() throws CompileError {
-        throw new Error("Not implemented");
+        if (check(TokenType.Ident))
+            analyseAssignmentStatement();
+        else if (check(TokenType.Print))
+            analyseOutputStatement();
+        else
+            expect(TokenType.Semicolon);
+        //throw new Error("Not implemented");
     }
 
     private void analyseConstantExpression() throws CompileError {
-        throw new Error("Not implemented");
+        boolean negate;
+        if (nextIf(TokenType.Minus) != null) {
+            negate = true;
+            // 计算结果需要被 0 减
+            instructions.add(new Instruction(Operation.LIT, 0));
+        } else {
+            nextIf(TokenType.Plus);
+            negate = false;
+        }
+        var valueToken = expect(TokenType.Uint);
+        instructions.add(new Instruction(Operation.LIT,(int)valueToken.getValue()));
+        if (negate) {
+            instructions.add(new Instruction(Operation.SUB));
+        }
+        //throw new Error("Not implemented");
     }
 
     private void analyseExpression() throws CompileError {
-        throw new Error("Not implemented");
+        boolean negate;
+        analyseItem();
+        while (check(TokenType.Plus)||check(TokenType.Minus)){
+            if(nextIf(TokenType.Minus)!=null){
+                negate=true;
+            }
+            else{
+                nextIf(TokenType.Plus);
+                negate=false;
+            }
+            analyseItem();
+            if(negate)
+                instructions.add(new Instruction(Operation.SUB));
+            else
+                instructions.add(new Instruction(Operation.ADD));
+        }
+        //throw new Error("Not implemented");
     }
 
     private void analyseAssignmentStatement() throws CompileError {
-        throw new Error("Not implemented");
+        var nameToken = expect(TokenType.Ident);
+        expect(TokenType.Equal);
+        analyseExpression();
+        expect(TokenType.Semicolon);
+        instructions.add(new Instruction(Operation.STO,getOffset(nameToken.getValueString(), nameToken.getStartPos())));
+        //throw new Error("Not implemented");
     }
 
     private void analyseOutputStatement() throws CompileError {
@@ -258,7 +321,22 @@ public final class Analyser {
     }
 
     private void analyseItem() throws CompileError {
-        throw new Error("Not implemented");
+        boolean div;
+        analyseFactor();
+        while (check(TokenType.Mult)||check(TokenType.Div)){
+            if(nextIf(TokenType.Div)!=null)
+                div=true;
+            else{
+                nextIf(TokenType.Mult);
+                div=false;
+            }
+            analyseFactor();
+            if(div)
+                instructions.add(new Instruction(Operation.DIV));
+            else
+                instructions.add(new Instruction(Operation.MUL));
+        }
+        //throw new Error("Not implemented");
     }
 
     private void analyseFactor() throws CompileError {
@@ -271,13 +349,19 @@ public final class Analyser {
             nextIf(TokenType.Plus);
             negate = false;
         }
-
         if (check(TokenType.Ident)) {
             // 调用相应的处理函数
+            var nextToken=expect(TokenType.Ident);
+            instructions.add(new Instruction(Operation.LOD,getOffset(nextToken.getValueString(),nextToken.getStartPos())));
         } else if (check(TokenType.Uint)) {
             // 调用相应的处理函数
+            var nextToken=expect(TokenType.Uint);
+            instructions.add(new Instruction(Operation.LIT,(int)nextToken.getValue()));
         } else if (check(TokenType.LParen)) {
             // 调用相应的处理函数
+            expect(TokenType.LParen);
+            analyseExpression();
+            expect(TokenType.RParen);
         } else {
             // 都不是，摸了
             throw new ExpectedTokenError(List.of(TokenType.Ident, TokenType.Uint, TokenType.LParen), next());
@@ -286,6 +370,7 @@ public final class Analyser {
         if (negate) {
             instructions.add(new Instruction(Operation.SUB));
         }
-        throw new Error("Not implemented");
+
+        //throw new Error("Not implemented");
     }
 }
